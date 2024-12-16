@@ -2,6 +2,12 @@ local M = {}
 
 local dap = require('dap')
 
+local function notify(msg, levels, opts)
+  vim.schedule(function()
+    vim.notify(msg, levels, opts)
+  end)
+end
+
 ---@class PluginConfiguration
 ---@field cpptools table<string,string>
 ---@field configurations table
@@ -159,13 +165,13 @@ if plenary_ok then
 
   function M.install_cpptools(version)
     local ver = version or internal_global_config.cpptools.version
-    vim.notify('installing cpptools ' .. internal_global_config.cpptools.version)
+    notify('installing cpptools ' .. internal_global_config.cpptools.version)
     async.void(function()
       if ver == 'latest' then
         ver = get_cpptools_versions()[1]
       end
       _install_cpptools(ver)
-      vim.notify('installed cpptools')
+      notify('installed cpptools')
     end)()
   end
 end
