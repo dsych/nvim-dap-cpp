@@ -39,7 +39,7 @@ require('lazy').setup({
   },
   {
     'mfussenegger/nvim-dap',
-    version = '0.8.0',
+    version = '0.9.0',
     lazy = true,
     dependencies = {
       'nvim-neotest/nvim-nio',
@@ -68,6 +68,7 @@ require('lazy').setup({
   {
     dir = '/workspaces/nvim-dap-cpp',
     dependencies = { 'mfussenegger/nvim-dap' },
+    build = 'make setup',
     opts = {
       configurations = {
         {
@@ -101,10 +102,10 @@ end)
 vim.keymap.set('n', '<F12>', function()
   require('dap').step_out()
 end)
-vim.keymap.set('n', '<Leader>b', function()
+vim.keymap.set('n', '<Leader>db', function()
   require('dap').toggle_breakpoint()
 end)
-vim.keymap.set('n', '<Leader>B', function()
+vim.keymap.set('n', '<Leader>dB', function()
   require('dap').set_breakpoint()
 end)
 vim.keymap.set('n', '<Leader>lp', function()

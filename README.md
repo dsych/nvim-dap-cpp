@@ -1,24 +1,24 @@
 # nvim-dap-cpp
 
-[nvim-dap][1] plugin for c, cpp.
+`nvim-dap-cpp` is a Neovim plugin that extends the functionality of `nvim-dap` to provide debugging support for C and C++ programs.
 
 ## Installation
 
-[`lazy.nvim`][3]
+[`lazy.nvim`][3]:
 
 ```lua
 {
   'goropikari/nvim-dap-cpp',
   dependencies = {
     'mfussenegger/nvim-dap',
-    'nvim-lua/plenary.nvim',
-},
+  },
+  build = 'make setup', -- not necessary if you use mason.
   opts = {
-    cpptools = {
-      path = vim.fn.stdpath('data') .. '/cpptools/extension/debugAdapters/bin/OpenDebugAD7',
-      -- for installation command
-      version = 'latest',
-      platform = 'linux-x64',
+    -- default value
+    codelldb = {
+      path = vim.fn.stdpath('data') .. '/nvim-dap-cpp.nvim/extension/adapter/codelldb',
+      -- for mason
+      -- path = require('mason-registry').get_package('codelldb'):get_install_path()
     },
     configurations = {},
   },
@@ -26,21 +26,9 @@
 }
 ```
 
-Install cpptools
+## License
 
-```lua
-lua require('dap-cpp').install_cpptools()
-```
-
-## Setup development environment for this plugin
-
-```bash
-npm install -g @devcontainers/cli
-devcontainer up --workspace-folder=.
-devcontainer exec --workspace-folder=. bash
-
-nvim
-```
+This plugin is released under the MIT License.
 
 [1]: https://github.com/mfussenegger/nvim-dap
 [2]: https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools

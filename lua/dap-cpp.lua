@@ -1,6 +1,6 @@
-local M = {}
-
 local dap = require('dap')
+
+local M = {}
 
 local function notify(msg, levels, opts)
   vim.schedule(function()
@@ -8,34 +8,29 @@ local function notify(msg, levels, opts)
   end)
 end
 
+---@class CppDapConfiguration : dap.Configuration
+---@field build string[]
+---@field args? string[]
+---@field stdin? string|string[]
+
 ---@class PluginConfiguration
----@field cpptools table<string,string>
----@field configurations table
+---@field codelldb table<string,string>
+---@field dap_configurations CppDapConfiguration
 
 ---@type PluginConfiguration
 ---@diagnostic disable-next-line
 local internal_global_config = {}
 
 local default_config = {
-  cpptools = {
-    path = vim.fn.stdpath('data') .. '/cpptools/extension/debugAdapters/bin/OpenDebugAD7',
-    version = 'latest',
-    platform = 'linux-x64',
-    -- {
-    --   "win32-x64": "Windows x64",
-    --   "win32-arm64": "Windows ARM",
-    --   "linux-x64": "Linux x64",
-    --   "linux-arm64": "Linux ARM64",
-    --   "linux-armhf": "Linux ARM32",
-    --   "darwin-x64": "macOS Intel",
-    --   "darwin-arm64": "macOS Apple Silicon",
-    --   "alpine-x64": "Alpine Linux 64 bit",
-    --   "alpine-arm64": "Alpine Linux ARM64",
-    --   "win32-ia32": "Windows ia32"
-    -- }
+  codelldb = {
+    path = vim.fn.stdpath('data') .. '/nvim-dap-cpp.nvim/extension/adapter/codelldb',
   },
-  configurations = {},
+  dap_configurations = {},
 }
+
+local function codelldb_path()
+  return internal_global_config.codelldb.path
+end
 
 -- https://github.com/leoluz/nvim-dap-go/blob/5511788255c92bdd845f8d9690f88e2e0f0ff9f2/lua/dap-go.lua#L34-L42
 ---@param prompt string
@@ -49,131 +44,119 @@ local function ui_input_list(prompt)
   end)
 end
 
+local function ui_input(prompt)
+  return coroutine.create(function(dap_run_co)
+    vim.ui.input({ prompt = prompt }, function(input)
+      coroutine.resume(dap_run_co, input)
+    end)
+  end)
+end
+
 local function get_arguments()
   return ui_input_list('Args: ')
 end
 
+local function get_stdio()
+  local stdio = { nil, nil, nil }
+
+  local stdin = ui_input('stdin: ')
+  if stdin ~= '' then
+    stdio[1] = stdin
+  end
+  local stdout = ui_input('stdout: ')
+  if stdin ~= '' then
+    stdio[2] = stdout
+  end
+  local stderr = ui_input('stderr: ')
+  if stdin ~= '' then
+    stdio[3] = stderr
+  end
+
+  return stdio
+end
+
 local function default_build()
   if vim.bo.filetype == 'cpp' then
-    return { 'g++', '-g', '-O0', vim.fn.expand('%'), '-o', vim.fn.expand('%:r') }
+    return { 'g++', '-ggdb3', '-O0', vim.fn.expand('%'), '-o', vim.fn.expand('%:r') }
   elseif vim.bo.filetype == 'c' then
-    return { 'gcc', '-g', '-O0', vim.fn.expand('%'), '-o', vim.fn.expand('%:r') }
+    return { 'gcc', '-ggdb3', '-O0', vim.fn.expand('%'), '-o', vim.fn.expand('%:r') }
   end
 end
 
-local function setup_adapter(plugin_config)
-  dap.adapters.gdbdbg = {
+local function setup_adapter()
+  dap.adapters.lldb = { -- for vscode cpp debug
+    id = 'lldb',
     type = 'executable',
-    command = 'gdb',
-    args = { '-i', 'dap' },
-    enrich_config = function(config, on_config)
-      local final_config = vim.deepcopy(config)
-      local build_command = config.build or default_build()
-      vim.fn.system(build_command)
-      -- vim.fn.system({ 'g++', '-g', '-O0', vim.fn.expand('%'), '-o', vim.fn.expand('%:r') })
-      on_config(final_config)
-    end,
-  }
+    command = codelldb_path(),
 
-  dap.adapters.cppdbg = { -- for vscode cpp debug
-    id = 'cppdbg',
-    type = 'executable',
-    command = plugin_config.cpptools.path,
+    ---@param config CppDapConfiguration
+    ---@param on_config fun(CppDapConfiguration)
     enrich_config = function(config, on_config)
       local final_config = vim.deepcopy(config)
       local build_command = config.build or default_build()
-      vim.fn.system(build_command)
-      on_config(final_config)
+      vim.system(build_command, { text = true }, function(out)
+        if out.code ~= 0 then
+          notify(out.stderr, vim.log.levels.ERROR)
+          return
+        end
+        vim.schedule(function()
+          on_config(final_config)
+        end)
+      end)
     end,
   }
 end
 
+---@param plugin_config PluginConfiguration
 local function setup_dap_configurations(plugin_config)
   dap.configurations.cpp = dap.configurations.cpp or {}
   local common_configurations = {
     {
       name = 'Build and debug active file',
-      type = 'cppdbg',
+      type = 'lldb',
       request = 'launch',
       program = '${fileDirname}/${fileBasenameNoExtension}',
-      build = default_build(),
+      build = nil,
       cwd = '${fileDirname}',
     },
     {
       name = 'Build and debug active file with arguments',
-      type = 'cppdbg',
+      type = 'lldb',
       request = 'launch',
       program = '${fileDirname}/${fileBasenameNoExtension}',
       cwd = '${fileDirname}',
-      build = default_build(),
+      build = nil,
       args = get_arguments,
     },
     {
-      name = 'Build and debug active file (gdb dap)',
-      type = 'gdbdbg',
+      name = 'Build and debug active file with stdio and args',
+      type = 'lldb',
       request = 'launch',
       program = '${fileDirname}/${fileBasenameNoExtension}',
-      build = default_build(),
+      cwd = '${fileDirname}',
+      build = nil,
+      args = get_arguments,
+      stdio = get_stdio,
     },
   }
 
   vim.list_extend(dap.configurations.cpp, common_configurations)
-  vim.list_extend(dap.configurations.cpp, plugin_config.configurations)
+  vim.list_extend(dap.configurations.cpp, plugin_config.dap_configurations)
 
   dap.configurations.c = dap.configurations.c or {}
   vim.list_extend(dap.configurations.c, dap.configurations.cpp)
 end
 
+---@param opts PluginConfiguration
 function M.setup(opts)
   internal_global_config = vim.tbl_deep_extend('force', default_config, opts or {})
-  setup_adapter(internal_global_config)
+  setup_adapter()
   setup_dap_configurations(internal_global_config)
 end
 
+---@return PluginConfiguration
 function M.get_config()
   return internal_global_config
-end
-
-local plenary_ok, async = pcall(require, 'plenary.async')
-if plenary_ok then
-  local async_system = async.wrap(vim.system, 3)
-
-  local function get_cpptools_versions()
-    local obj = async_system({ 'curl', '-L', 'https://api.github.com/repos/microsoft/vscode-cpptools/releases' })
-    local versions = {}
-    for _, v in ipairs(vim.json.decode(obj.stdout)) do
-      _, _, v = string.find(v.tag_name, '(%d+.%d+.%d+)')
-      table.insert(versions, v)
-    end
-    return versions
-  end
-
-  local function _install_cpptools(version)
-    local publisher = 'ms-vscode'
-    local platform = internal_global_config.cpptools.platform
-    local url = string.format(
-      'http://%s.gallery.vsassets.io/_apis/public/gallery/publisher/%s/extension/cpptools/%s/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage?targetPlatform=%s',
-      publisher,
-      publisher,
-      version,
-      platform
-    )
-    async_system({ 'curl', '-L', url, '-o', vim.fn.stdpath('data') .. '/cpptools.vsix' })
-    async_system({ 'unzip', '-o', '-d', vim.fn.stdpath('data') .. '/cpptools', vim.fn.stdpath('data') .. '/cpptools.vsix' })
-    async_system({ 'chmod', '+x', vim.fn.stdpath('data') .. '/cpptools/extension/debugAdapters/bin/OpenDebugAD7' })
-  end
-
-  function M.install_cpptools(version)
-    local ver = version or internal_global_config.cpptools.version
-    notify('installing cpptools ' .. internal_global_config.cpptools.version)
-    async.void(function()
-      if ver == 'latest' then
-        ver = get_cpptools_versions()[1]
-      end
-      _install_cpptools(ver)
-      notify('installed cpptools')
-    end)()
-  end
 end
 
 return M

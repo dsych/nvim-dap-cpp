@@ -1,18 +1,16 @@
 {
-  "name": "C++",
-  "build": {
-      "dockerfile": "Dockerfile"
-  },
-  "features": {
-      "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-      "ghcr.io/goropikari/devcontainer-feature/neovim:1": {},
-  },
-  "mounts": [
-      "source=./example/nvim,target=/home/ubuntu/.config/nvim-dap,type=bind"
-  ],
-  "containerEnv": {
-      "NVIM_APPNAME": "nvim-dap",
-  },
-  "remoteUser": "ubuntu"
-  "updateRemoteUserUID": true,
+    "name": "C++",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "features": {
+        "ghcr.io/goropikari/devcontainer-feature/neovim:1": {}
+    },
+    "mounts": [
+        "source=./example/nvim,target=/home/vscode/.config/nvim-dap,type=bind"
+    ],
+    "containerEnv": {
+        "NVIM_APPNAME": "nvim-dap"
+    },
+    "remoteUser": "vscode"
 }
