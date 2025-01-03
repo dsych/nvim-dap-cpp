@@ -93,16 +93,18 @@ local function setup_adapter()
     ---@param on_config fun(CppDapConfiguration)
     enrich_config = function(config, on_config)
       local final_config = vim.deepcopy(config)
-      local build_command = config.build or default_build()
-      vim.system(build_command, { text = true }, function(out)
-        if out.code ~= 0 then
-          notify(out.stderr, vim.log.levels.ERROR)
-          return
-        end
-        vim.schedule(function()
-          on_config(final_config)
+      if config.build ~= nil then
+        local build_command = config.build == "default" and default_build() or config.build
+        vim.system(build_command, { text = true }, function(out)
+          if out.code ~= 0 then
+            notify(out.stderr, vim.log.levels.ERROR)
+            return
+          end
+          vim.schedule(function()
+            on_config(final_config)
+          end)
         end)
-      end)
+      end
     end,
   }
 end
